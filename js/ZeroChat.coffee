@@ -6,32 +6,122 @@ class ZeroChat extends ZeroFrame
 
     $.when(@event_site_info).done =>
       @log "event site info"
-      @initFollowButton()
+      @checkUser()
 
     @addLine "inited!"
 
+  checkUser:()=>
+    if @site_info.cert_user_id
+      @myDataPath= "data/users/#{@site_info.auth_address}/data.json"  # This is our data file
+      #has login info
+      @siteInit()
+      return
+
+    @cmd "certSelect", [["zeroid.bit"]]
+
+    
+
+  renderAppend:(response)=>
+    @log response
+
+
+  receiveResponse:(response)=>
+    #todo use dbQuery
+    @log "trying to get my pusher's data ",@myPusherPath
+    @cmd "fileGet", {"inner_path":@myPusherPath},(push_data)=>
+
+      @log "my pusher's data #{@myPusherPath} getted"
+      pushMessages=JSON.parse(push_data)
+
+      myResponse = pushMessages.response[@site_info.auth_address]
+      if myResponse
+        #server restart or I'm not logined
+        #not sent any request
+        @log "I haven't sent any request to site"
+        @initRequest()
+      else
+        #TODO check id not continues problem (server restart while user sent )
+        @log "site have my previous response"
+        @myData.next_id = response.next_id
+        @renderAppend(myResponse)
+
+
+  writeData:(callback)=>
+    @myData.id=@next_id
+    json_raw = unescape(encodeURIComponent(JSON.stringify(@myData, undefined, '\t')))
+    @cmd "fileWrite", [@myDataPath, btoa(json_raw)], callback
+
+
+  siteInit:()=>
+    @log "getting push_map.json"
+    @cmd "fileGet", {"inner_path": "data/push_map.json"}, (push_map_json)=>
+
+      pushMap = JSON.parse(push_map_json)
+      @log "push_map.json getted", pushMap
+      #TODO support different pushers
+      @myPusherPath = "data/users/#{pushMap.pusher[0]}/data.json"
+
+      @log "trying to get my data:",@myDataPath
+
+      @cmd "fileGet", {"inner_path":@myDataPath,"required":false},(my_data)=>
+
+
+        if my_data
+          @myData= JSON.parse(my_data)
+          @log "my data ",@myData
+          @receiveResponse()
+        else
+          @log "no my data, create new"
+          @next_id=0
+          @myData= {"request":{}}
+          @writeData (res)=>
+            if res is 'ok'
+              @receiveResponse()
+            else
+              @log "error"
+
+          
+
+
+
+
+
+      
+        
+
+
+  initRequest:()=>
+    @log "init request"
+    @next_id = 0
+    @myData.request={"cmd":"handshake"}
+    @sendRequest()
+
+  writeFinishCallback:(res)=>
+    if res == "ok"
+      @log "write ok"
+      # Publish the file to other users
+      @cmd "sitePublish", {"inner_path": @myDataPath}, (res) =>
+        if res == 'ok'
+          @log "publish ok"
+          document.getElementById("message").disabled = false
+          document.getElementById("message").focus()
+        else
+          #TODO  revert UI
+          @log "publish failed"
+    else
+      @cmd "wrapperNotification", ["error", "File write error: #{res}"]
+      document.getElementById("message").disabled = false
+
+
+  sendRequest:()=>
+    @myData.id=@next_id
+    @writeData @writeFinishCallback
+      
+
   setSiteInfo:(site_info)=>
+    @log "site_info",site_info
     @site_info = site_info
     @event_site_info.resolve(site_info)
-
-  initFollowButton: ->
-    @follow = new Follow($(".feed-follow"))
-    @follow.addFeed("留言", "
-      SELECT
-      'message' AS type,
-       message.date_added/1000 AS date_added,
-       keyvalue.value AS title,
-       message.body AS body,
-       '/'  AS url
-      FROM message
-      LEFT JOIN json USING (json_id)
-      LEFT JOIN json AS json_content ON
-      (json_content.directory = json.directory
-      AND json_content.file_name='content.json')
-      LEFT JOIN keyvalue ON
-      (keyvalue.json_id = json_content.json_id AND key = 'cert_user_id')
-      ", true)
-    @follow.init()
 
 
   selectUser: =>
@@ -47,79 +137,22 @@ class ZeroChat extends ZeroFrame
         document.getElementById("select_user").innerHTML = "Select user"
       @setSiteInfo(message.params)
 
-      
-
-      # Reload messages if new file arrives
-      if message.params.event[0] == "file_done"
-          @loadMessages()
+      if @site_info.event?[0] == "file_done" and
+        @site_info.event[1].match /data\/users\/#{@myPusherPath}\/data.json$/
+          @receiveResponse()
     else
       @log cmd,message
 
 
   sendMessage: =>
     if not Page.site_info.cert_user_id  # No account selected, display error
-      Page.cmd "wrapperNotification", ["info", "Please, select your account."]
-      return false
+      Page.cmd "wrapperNotification", ["info", "you must login first to play this game"]
+      return
 
-    document.getElementById("message").disabled = true
-    inner_path = "data/users/#{@site_info.auth_address}/data.json"  # This is our data file
+    $("#message").disabled = true
 
-    # Load our current messages
-    @cmd "fileGet", {"inner_path": inner_path, "required": false}, (data) =>
-      if data  # Parse if already exits
-        data = JSON.parse(data)
-      else  # Not exits yet, use default data
-        data = { "message": [] }
+    @sendRequest({"cmd":$("#message").text()})
 
-      # Add the message to data
-      data.message.push({
-        "body": document.getElementById("message").value,
-        "date_added": (+new Date)
-      })
-
-      # Encode data array to utf8 json text
-      json_raw = unescape(encodeURIComponent(JSON.stringify(data, undefined, '\t')))
-
-      # Write file to disk
-      @cmd "fileWrite", [inner_path, btoa(json_raw)], (res) =>
-        if res == "ok"
-          # Publish the file to other users
-          @cmd "sitePublish", {"inner_path": inner_path}, (res) =>
-            document.getElementById("message").disabled = false
-            document.getElementById("message").value = ""  # Reset the message input
-            document.getElementById("message").focus()
-            @loadMessages()
-        else
-          @cmd "wrapperNotification", ["error", "File write error: #{res}"]
-          document.getElementById("message").disabled = false
-
-    return false
-
-
-  loadMessages: (mode="normal") ->
-    query = """
-        SELECT message.*, keyvalue.value AS cert_user_id FROM message
-        LEFT JOIN json AS data_json USING (json_id)
-        LEFT JOIN json AS content_json ON (
-            data_json.directory = content_json.directory AND content_json.file_name = 'content.json'
-        )
-        LEFT JOIN keyvalue ON (keyvalue.key = 'cert_user_id' AND keyvalue.json_id = content_json.json_id)
-        ORDER BY date_added DESC
-    """
-    if mode != "nolimit"
-      query += " LIMIT 60"
-    @cmd "dbQuery", [query], (messages) =>
-      document.getElementById("messages").innerHTML = ""  # Always start with empty messages
-      message_lines = []
-      for message in messages
-        if message.date_added > (+new Date) + 60*3 then continue
-        body = message.body.replace(/</g, "&lt;").replace(/>/g, "&gt;")  # Escape html tags in body
-        added = new Date(message.date_added)
-        message_lines.push "<li><small title='#{added}'>#{Time.since(message.date_added/1000)}</small> <b style='color: #{Text.toColor(message.cert_user_id)}'>#{message.cert_user_id.replace('@zeroid.bit', '')}</b>: #{body}</li>"
-      if mode != "nolimit"
-        message_lines.push("<li><a href='#More' onclick='this.style.opacity = 0.4; return Page.loadMessages(\"nolimit\"); '>Load more messages...</a></li>")
-      document.getElementById("messages").innerHTML = message_lines.join("\n")
-    return false
 
 
   addLine: (line) ->
@@ -135,9 +168,13 @@ class ZeroChat extends ZeroFrame
       if site_info.cert_user_id
         document.getElementById("select_user").innerHTML = site_info.cert_user_id
 
+    @log "get server info"
     @cmd "serverInfo", {}, (ret) => # Get server info
+      @log "server info getted",ret
       @server_info = ret
-    @loadMessages()
-
+      if @server_info.rev < 160
+        @cmd "wrapperNotification", ["error",
+        "game requires at least ZeroNet 0.3.0 Please upgade!"]
+        return
 
 window.Page = new ZeroChat()
