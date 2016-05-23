@@ -4,6 +4,9 @@ class ZeroChat extends ZeroFrame
     @site_info = null
     @server_info = null
 
+
+    $(window).resize(adjustLayout)
+    adjustLayout()
     $.when(@event_site_info).done =>
       @log "event site info"
       @checkUser()
@@ -22,7 +25,19 @@ class ZeroChat extends ZeroFrame
     
 
   renderAppend:(response)=>
-    @log response
+
+
+    result=[]
+
+    for r in response
+      if r
+        colored=convertToColor(r)
+        for c in colored
+          result.push("<span class='out'>#{c}</span>")
+        result.push("<br/>")
+
+    out = $('div#out')
+    out.html(result.join("\n")).scrollTop(out.prop("scrollHeight"))
 
 
   receiveResponse:(response)=>
@@ -34,7 +49,7 @@ class ZeroChat extends ZeroFrame
       pushMessages=JSON.parse(push_data)
 
       myResponse = pushMessages.response[@site_info.auth_address]
-      if myResponse
+      if !myResponse
         #server restart or I'm not logined
         #not sent any request
         @log "I haven't sent any request to site"
@@ -42,12 +57,10 @@ class ZeroChat extends ZeroFrame
       else
         #TODO check id not continues problem (server restart while user sent )
         @log "site have my previous response"
-        @myData.next_id = response.next_id
         @renderAppend(myResponse)
 
 
   writeData:(callback)=>
-    @myData.id=@next_id
     json_raw = unescape(encodeURIComponent(JSON.stringify(@myData, undefined, '\t')))
     @cmd "fileWrite", [@myDataPath, btoa(json_raw)], callback
 
@@ -59,7 +72,8 @@ class ZeroChat extends ZeroFrame
       pushMap = JSON.parse(push_map_json)
       @log "push_map.json getted", pushMap
       #TODO support different pushers
-      @myPusherPath = "data/users/#{pushMap.pusher[0]}/data.json"
+      @myPusherAuthAddress=pushMap.pusher[0]
+      @myPusherPath = "data/users/#{@myPusherAuthAddress}/data.json"
 
       @log "trying to get my data:",@myDataPath
 
@@ -93,7 +107,7 @@ class ZeroChat extends ZeroFrame
   initRequest:()=>
     @log "init request"
     @next_id = 0
-    @myData.request={"cmd":"handshake"}
+    @myData.request=Math.random()+""
     @sendRequest()
 
   writeFinishCallback:(res)=>
@@ -138,7 +152,7 @@ class ZeroChat extends ZeroFrame
       @setSiteInfo(message.params)
 
       if @site_info.event?[0] == "file_done" and
-        @site_info.event[1].match /data\/users\/#{@myPusherPath}\/data.json$/
+        @site_info.event[1] == "data/users/#{@myPusherAuthAddress}/data.json"
           @receiveResponse()
     else
       @log cmd,message
@@ -151,7 +165,8 @@ class ZeroChat extends ZeroFrame
 
     $("#message").disabled = true
 
-    @sendRequest({"cmd":$("#message").text()})
+    @myData.request=$("#message")[0].value
+    @sendRequest()
 
 
 
