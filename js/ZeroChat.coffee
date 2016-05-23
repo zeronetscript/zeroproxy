@@ -4,9 +4,6 @@ class ZeroChat extends ZeroFrame
     @site_info = null
     @server_info = null
 
-
-    $(window).resize(adjustLayout)
-    adjustLayout()
     $.when(@event_site_info).done =>
       @log "event site info"
       @checkUser()
@@ -24,20 +21,9 @@ class ZeroChat extends ZeroFrame
 
     
 
-  renderAppend:(response)=>
-
-
-    result=[]
-
-    for r in response
-      if r
-        colored=convertToColor(r)
-        for c in colored
-          result.push("<span class='out'>#{c}</span>")
-        result.push("<br/>")
-
+  renderResponse:(response)=>
     out = $('div#out')
-    out.html(result.join("\n")).scrollTop(out.prop("scrollHeight"))
+    out.html(response)
 
 
   receiveResponse:(response)=>
@@ -107,7 +93,7 @@ class ZeroChat extends ZeroFrame
   initRequest:()=>
     @log "init request"
     @next_id = 0
-    @myData.request=Math.random()+""
+    @myData.request="www.google.com"
     @sendRequest()
 
   writeFinishCallback:(res)=>
@@ -128,7 +114,6 @@ class ZeroChat extends ZeroFrame
 
 
   sendRequest:()=>
-    @myData.id=@next_id
     @writeData @writeFinishCallback
       
 
@@ -139,7 +124,7 @@ class ZeroChat extends ZeroFrame
 
 
   selectUser: =>
-    Page.cmd "certSelect", [["zeroid.bit", "zeroverse.bit"]]
+    Page.cmd "certSelect", [["zeroid.bit"]]
     return false
 
 
@@ -189,7 +174,7 @@ class ZeroChat extends ZeroFrame
       @server_info = ret
       if @server_info.rev < 160
         @cmd "wrapperNotification", ["error",
-        "game requires at least ZeroNet 0.3.0 Please upgade!"]
+        "requires at least ZeroNet 0.3.0 Please upgade!"]
         return
 
 window.Page = new ZeroChat()
