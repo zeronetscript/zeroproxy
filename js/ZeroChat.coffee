@@ -8,7 +8,7 @@ class ZeroChat extends ZeroFrame
       @log "event site info"
       @checkUser()
 
-    @addLine "inited!"
+    @setLine "初始完成"
 
   checkUser:()=>
     if @site_info.cert_user_id
@@ -23,7 +23,11 @@ class ZeroChat extends ZeroFrame
 
   renderResponse:(response)=>
     out = $('div#out')
-    out.html(response)
+    dom=$("<div>#{response}</div>")
+    $("img",dom).remove()
+    $("script",dom).remove()
+    $("iframe",dom).remove()
+    out.html(dom.html())
 
 
   receiveResponse:(response)=>
@@ -43,7 +47,8 @@ class ZeroChat extends ZeroFrame
       else
         #TODO check id not continues problem (server restart while user sent )
         @log "site have my previous response"
-        @renderAppend(myResponse)
+        @setLine "最后访问的网站"
+        @renderResponse(myResponse)
 
 
   writeData:(callback)=>
@@ -83,16 +88,8 @@ class ZeroChat extends ZeroFrame
           
 
 
-
-
-
-      
-        
-
-
   initRequest:()=>
     @log "init request"
-    @next_id = 0
     @myData.request="www.google.com"
     @sendRequest()
 
@@ -114,6 +111,7 @@ class ZeroChat extends ZeroFrame
 
 
   sendRequest:()=>
+    @setLine("请求访问网站:"+@myData.request)
     @writeData @writeFinishCallback
       
 
@@ -155,9 +153,9 @@ class ZeroChat extends ZeroFrame
 
 
 
-  addLine: (line) ->
+  setLine: (line) ->
     messages = document.getElementById("messages")
-    messages.innerHTML = "<li>#{line}</li>"+messages.innerHTML
+    messages.innerHTML = "<li>#{line}</li>"
 
 
   # Wrapper websocket connection ready

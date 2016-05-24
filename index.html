@@ -18,14 +18,22 @@ small { color: #999; width: 130px; display: inline-block; text-align: right; mar
  <link rel="stylesheet" href="css/all.css" />
 </head>
 <body>
-<h1 align="center" style="font-size:32px">中文聊天室</h1></br>
+
+  <div style="z-index:9999999999999999999;position:relative">
+<h1 align="center" style="font-size:32px">简单代理站：必须输入完整地址(例如http://www.twitter.com/wangxy1)。不支持图片和js等功能，结果页面也不能直接点击</h1></br>
  <a href="#Follow" class="feed-follow"><span class='text-follow'>主页提醒</span><span class='text-following'>已跟踪</span><div class="icon-feed"></div></a>
 <a href="#Select+user" id="select_user" onclick='return Page.selectUser()'>登陆</a>:
 
 
 <input type="text" id="message" onkeypress="if (event.keyCode == 13) Page.sendMessage()"><input type="button" id="send" value="发送!" onclick="return Page.sendMessage()"/>
 
+    
+<ul id="messages">
+</ul>
+</div>
+
 <div id="out"></div>
+
 
 
 <div class="menu template">
